@@ -105,14 +105,24 @@ resource "azurerm_linux_virtual_machine" "mtc-vm" {
     azurerm_network_interface.mtc-nic.id,
   ]
 
+  custom_data = filebase64("customdata.tpl")
+
   admin_ssh_key {
     username   = "adminuser"
-    public_key = file("/home/martimsbaltazar/Desktop/code/terraform-azure-dev-env/.ssh/mtc-azurekey.pub")
+    public_key = file("/home/martimsbaltazar/.ssh/mtc-azurekey.pub")
   }
 
   os_disk {
     caching              = "ReadWrite"
     storage_account_type = "Standard_LRS"
+  }
+  provisioner "local-exec" {
+    command = templatefile("linux-ssh-script.tpl", {
+      hostname     = self.public_ip_address
+      user         = "adminuser"
+      identityfile = "/home/martimsbaltazar/.ssh/mtc-azurekey"
+    })
+    interpreter = ["bash", "-c"]
   }
 
   source_image_reference {
@@ -121,4 +131,13 @@ resource "azurerm_linux_virtual_machine" "mtc-vm" {
     sku       = "22_04-lts"
     version   = "latest"
   }
+}
+
+data "azurerm_public_ip" "mtc-ip-data" {
+  name                = azurerm_public_ip.mtc-ip.name
+  resource_group_name = azurerm_resource_group.mtc-rg.name
+}
+
+output "public-ip-address" {
+  value = "${azurerm_linux_virtual_machine.mtc-vm.name}: ${data.azurerm_public_ip.mtc-ip-data.ip_address}"
 }
